@@ -44,17 +44,37 @@ class SandboxResult:
         }
 
 
+def _docker_kill(container_name: str) -> None:
+    """Kill a running sandbox container; best effort, never raises."""
+    try:
+        subprocess.run(
+            ["docker", "kill", container_name], capture_output=True
+        )
+    except OSError:  # docker gone too — nothing left to kill
+        pass
+
+
 def run_sandbox(
     argv: list[str],
     *,
     timeout_seconds: int = 300,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    killer: Callable[[str], None] = _docker_kill,
 ) -> SandboxResult:
-    """Run *argv* under a hard timeout and classify the outcome."""
+    """Run *argv* under a hard timeout and classify the outcome.
+
+    When the host-side timeout fires, the docker *client* dies with it —
+    but the container does not. ``killer`` (``docker kill`` by default) is
+    invoked with the sandbox's ``--name`` so a timed-out suite cannot keep
+    burning CPU as an orphaned container.
+    """
     started = time.monotonic()
     try:
         proc = runner(argv, capture_output=True, text=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
+        name = _container_name_from_argv(argv)
+        if name is not None:
+            killer(name)
         return _result("timed_out", None, started)
     except OSError as exc:
         return _result("error", None, started, output=str(exc))
@@ -77,6 +97,13 @@ def _result(
         output=output,
         summary=parse_summary(output),
     )
+
+
+def _container_name_from_argv(argv: list[str]) -> str | None:
+    """The ``--name`` value baked into a docker run argv, if any."""
+    if "--name" in argv:
+        return argv[argv.index("--name") + 1]
+    return None
 
 
 #: The sandbox image: python slim plus pytest, nothing else. Sandboxes run

@@ -92,6 +92,30 @@ def test_stderr_is_captured_into_output():
     assert "AssertionError" in result.output
 
 
+def test_timeout_kills_the_named_container():
+    killed: list[str] = []
+    fake = FakeRunner(raises=subprocess.TimeoutExpired(cmd=["docker"], timeout=5))
+
+    argv = [
+        "docker", "run", "--name", "pytestbox-abc123", "img", "python",
+    ]
+    result = run_sandbox(
+        argv,
+        timeout_seconds=5,
+        runner=fake,
+        killer=lambda name: killed.append(name),
+    )
+
+    assert result.status == "timed_out"
+    assert killed == ["pytestbox-abc123"]
+
+
+def test_default_killer_never_raises_when_docker_is_missing():
+    from pytestbox.runner import _docker_kill
+
+    _docker_kill("pytestbox-nothing")  # must not raise
+
+
 def test_build_image_returns_tag_on_success():
     fake = FakeRunner(returncode=0)
 

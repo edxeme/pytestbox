@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import uuid
 from pathlib import Path
 
 from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run
@@ -14,6 +15,11 @@ from pytestbox.runner import ImageBuildError, build_image, run_sandbox
 #: failed tests must fail the pipeline; a sandbox malfunction must fail it
 #: louder.
 _EXIT_CODES = {"passed": 0, "failed": 1, "timed_out": 2, "error": 3}
+
+
+def sandbox_name() -> str:
+    """Unique container name so host-side cleanup can kill by name."""
+    return f"pytestbox-{uuid.uuid4().hex[:12]}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         image=args.image,
         workspace=str(root),
         command=command,
-        container_name="pytestbox-cli",
+        container_name=sandbox_name(),
     )
     result = run_sandbox(sandbox_argv, timeout_seconds=args.timeout)
 
