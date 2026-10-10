@@ -4,7 +4,12 @@ import subprocess
 
 import pytest
 
-from pytestbox.runner import SandboxResult, run_sandbox
+from pytestbox.runner import (
+    ImageBuildError,
+    SandboxResult,
+    build_image,
+    run_sandbox,
+)
 
 
 class FakeRunner:
@@ -85,6 +90,39 @@ def test_stderr_is_captured_into_output():
     result = run_sandbox(["docker", "run", "x"], runner=fake)
 
     assert "AssertionError" in result.output
+
+
+def test_build_image_returns_tag_on_success():
+    fake = FakeRunner(returncode=0)
+
+    tag = build_image(tag="pytestbox:py312", python_tag="3.12", runner=fake)
+
+    assert tag == "pytestbox:py312"
+    argv = fake.calls[0]
+    assert argv[:3] == ["docker", "build", "-t"]
+    assert "pytestbox:py312" in argv
+
+
+def test_build_image_writes_dockerfile_with_python_tag():
+    captured = {}
+
+    def spy(argv, **kwargs):
+        captured["dockerfile"] = (
+            open(argv[-1] + "/Dockerfile").read()
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    build_image(tag="t", python_tag="3.13", runner=spy)
+
+    assert "FROM python:3.13-slim" in captured["dockerfile"]
+    assert "pytest" in captured["dockerfile"]
+
+
+def test_build_image_failure_raises_image_build_error():
+    fake = FakeRunner(returncode=1, stderr="build failed: boom")
+
+    with pytest.raises(ImageBuildError, match="boom"):
+        build_image(runner=fake)
 
 
 def test_to_dict_is_json_shaped():

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run
-from pytestbox.runner import run_sandbox
+from pytestbox.runner import ImageBuildError, build_image, run_sandbox
 
 #: Exit codes: chosen so pytestbox drops into CI pipelines cleanly —
 #: failed tests must fail the pipeline; a sandbox malfunction must fail it
@@ -25,6 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_build = sub.add_parser(
+        "build-image",
+        help="build the default sandbox image (pytest preinstalled)",
+    )
+    p_build.add_argument(
+        "--python", default="3.12", help="python tag for the base image"
+    )
+    p_build.add_argument(
+        "--tag", default=None, help="image tag (default: pytestbox:py<TAG>)"
+    )
 
     p_run = sub.add_parser("run", help="run a test suite inside the sandbox")
     p_run.add_argument("path", help="project root to mount read-only at /workspace")
@@ -46,6 +57,16 @@ def main(argv: list[str] | None = None) -> int:
     # parse_known_args: whatever the sandbox should run arrives as the
     # unrecognized remainder (pytestbox has no reason to know pytest flags).
     args, extra = parser.parse_known_args(argv)
+
+    if args.command == "build-image":
+        tag = args.tag or f"pytestbox:py{args.python}"
+        try:
+            built = build_image(tag=tag, python_tag=args.python)
+        except ImageBuildError as exc:
+            print(f"pytestbox: image build failed:\n{exc}", file=sys.stderr)
+            return 3
+        print(f"image ready: {built}")
+        return 0
 
     root = Path(args.path).resolve()
     if not root.is_dir():

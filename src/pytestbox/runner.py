@@ -1,15 +1,19 @@
-"""Execute a sandboxed run and classify what happened.
+"""Execute sandboxed runs and build the sandbox image.
 
 ``run_sandbox`` is deliberately boring: run the argv, watch the clock,
-translate the outcome into a :class:`SandboxResult`. The subprocess runner
-is injectable so every classification path is unit-testable without Docker.
+translate the outcome into a :class:`SandboxResult`. ``build_image``
+prepares the default sandbox image with pytest preinstalled, so sandboxes
+themselves can run with ``--network none``. Both subprocess runners are
+injectable so every path is unit-testable without Docker.
 """
 
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 
 from pytestbox.parser import parse_summary
@@ -73,3 +77,35 @@ def _result(
         output=output,
         summary=parse_summary(output),
     )
+
+
+#: The sandbox image: python slim plus pytest, nothing else. Sandboxes run
+#: with ``--network none``, so the dependencies must already be inside.
+SANDBOX_DOCKERFILE = '''FROM python:{python_tag}-slim
+RUN pip install --no-cache-dir "pytest>=8,<10"
+'''
+
+
+class ImageBuildError(RuntimeError):
+    """Raised when the sandbox image fails to build."""
+
+
+def build_image(
+    tag: str = "pytestbox:py312",
+    python_tag: str = "3.12",
+    *,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> str:
+    """Build the default sandbox image and return its tag."""
+    with tempfile.TemporaryDirectory() as build_dir:
+        dockerfile = Path(build_dir, "Dockerfile")
+        dockerfile.write_text(SANDBOX_DOCKERFILE.format(python_tag=python_tag))
+        proc = runner(
+            ["docker", "build", "-t", tag, build_dir],
+            capture_output=True,
+            text=True,
+        )
+
+    if proc.returncode != 0:
+        raise ImageBuildError(proc.stderr or proc.stdout or "docker build failed")
+    return tag

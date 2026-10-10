@@ -98,6 +98,27 @@ def test_text_mode_prints_output_and_status_line(make_project, canned_result, ca
     assert "passed · exit=0 · 2.5s" in captured.err
 
 
+def test_build_image_success_prints_tag(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli, "build_image", lambda tag, python_tag, **kw: f"{tag}"
+    )
+
+    assert cli.main(["build-image", "--python", "3.13"]) == 0
+
+    out = capsys.readouterr().out
+    assert "image ready: pytestbox:py3.13" in out
+
+
+def test_build_image_failure_exits_three(monkeypatch, capsys):
+    def boom(**kwargs):
+        raise cli.ImageBuildError("network down during build")
+
+    monkeypatch.setattr(cli, "build_image", boom)
+
+    assert cli.main(["build-image"]) == 3
+    assert "network down during build" in capsys.readouterr().err
+
+
 def test_missing_path_fails(capsys):
     with pytest.raises(SystemExit) as excinfo:
         cli.main(["run", "/nonexistent/pytestbox-path"])
