@@ -72,6 +72,8 @@ pytestbox run /path/to/project -- pytest -v tests/unit   # custom command
 - `--memory` / `--cpus` / `--pids-limit 128` — runaway memory, CPU and
   fork bombs are capped
 - `--cap-drop ALL` + `no-new-privileges` — no privilege escalation paths
+- Runs as the **invoking user** (`--user uid:gid`) — least privilege, and
+  mounted-workspace permissions resolve exactly as on the host
 - Host-side hard timeout — on expiry the container is killed **by name**;
   the docker client dying does not leave an orphan behind (regression-tested)
 

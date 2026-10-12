@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pytestbox"
-version = "0.2.0"
+version = "0.2.1"
 description = "Run untrusted pytest suites in locked-down Docker sandboxes with hard timeouts and structured results."
 readme = "README.md"
 requires-python = ">=3.11"

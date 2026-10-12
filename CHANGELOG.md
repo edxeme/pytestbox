@@ -3,6 +3,17 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] — 2026-10-12
+
+### Fixed
+
+- Sandboxes run as the **invoking user** (`--user uid:gid`). On Linux CI, pytest's
+  permission-hardened `tmp_path` directories (mode 700) were unsearchable to a
+  root-without-capabilities container (`--cap-drop ALL` removes `DAC_OVERRIDE`),
+  crashing pytest at config discovery with `PermissionError`. Running as the
+  invoking user resolves mount permissions exactly as on the host — and is
+  least-privilege by design. `/tmp` tmpfs pinned to `mode=1777`.
+
 ## [0.2.0] — 2026-10-12
 
 ### Added
