@@ -8,7 +8,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run
+from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run, host_user
 from pytestbox.runner import ImageBuildError, build_image, run_sandbox
 
 #: Exit codes: chosen so pytestbox drops into CI pipelines cleanly —
@@ -91,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         workspace=str(root),
         command=command,
         container_name=sandbox_name(),
+        user=host_user(),
     )
     result = run_sandbox(sandbox_argv, timeout_seconds=args.timeout)
 

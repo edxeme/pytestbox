@@ -1,6 +1,8 @@
 """Tests for the docker run argv builder."""
 
-from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run
+import re
+
+from pytestbox.cmdline import DEFAULT_PYTEST_COMMAND, build_docker_run, host_user
 
 
 def test_builds_full_locked_down_argv():
@@ -9,6 +11,7 @@ def test_builds_full_locked_down_argv():
         workspace="/tmp/proj",
         command=["python", "-m", "pytest", "-q"],
         container_name="pytestbox-abc123",
+        user="1001:1001",
     )
 
     assert argv == [
@@ -17,6 +20,8 @@ def test_builds_full_locked_down_argv():
         "--rm",
         "--name",
         "pytestbox-abc123",
+        "--user",
+        "1001:1001",
         "--network",
         "none",
         "--memory",
@@ -31,7 +36,7 @@ def test_builds_full_locked_down_argv():
         "no-new-privileges",
         "--read-only",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,size=64m",
+        "/tmp:rw,noexec,nosuid,size=64m,mode=1777",
         "-v",
         "/tmp/proj:/workspace:ro",
         "-w",
@@ -42,6 +47,22 @@ def test_builds_full_locked_down_argv():
         "pytest",
         "-q",
     ]
+
+
+def test_user_flag_is_omitted_when_none():
+    argv = build_docker_run(
+        image="img",
+        workspace="/w",
+        command=["true"],
+        container_name="pytestbox-x",
+    )
+
+    assert "--user" not in argv
+
+
+def test_host_user_looks_like_uid_gid():
+    if host_user() is not None:  # None on Windows, absent test there
+        assert re.fullmatch(r"\d+:\d+", host_user())
 
 
 def test_workspace_is_mounted_read_only():

@@ -15,6 +15,8 @@ posture of every sandbox is visible in one place and unit-testable:
 
 from __future__ import annotations
 
+import os
+
 #: The command sandboxed suites run by default: pytest with no cache writes
 #: (the root filesystem is read-only) and quiet output.
 DEFAULT_PYTEST_COMMAND = [
@@ -27,6 +29,14 @@ DEFAULT_PYTEST_COMMAND = [
 ]
 
 
+def host_user() -> str | None:
+    """The invoking user as ``uid:gid`` — ``None`` where POSIX ids don't exist."""
+    try:
+        return f"{os.getuid()}:{os.getgid()}"
+    except AttributeError:  # Windows: no uid/gid concept
+        return None
+
+
 def build_docker_run(
     *,
     image: str,
@@ -35,14 +45,23 @@ def build_docker_run(
     container_name: str,
     memory: str = "512m",
     cpus: float = 1.0,
+    user: str | None = None,
 ) -> list[str]:
     """Assemble the full ``docker run`` argv for one sandboxed execution."""
-    return [
+    argv = [
         "docker",
         "run",
         "--rm",
         "--name",
         container_name,
+    ]
+    if user is not None:
+        # Run as the invoking user: least privilege, and file permissions on
+        # the mounted workspace resolve exactly as they do on the host.
+        # (root with --cap-drop ALL loses DAC_OVERRIDE and cannot even stat
+        # into pytest's permission-hardened tmp_path directories.)
+        argv += ["--user", user]
+    argv += [
         "--network",
         "none",
         "--memory",
@@ -57,7 +76,7 @@ def build_docker_run(
         "no-new-privileges",
         "--read-only",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,size=64m",
+        "/tmp:rw,noexec,nosuid,size=64m,mode=1777",
         "-v",
         f"{workspace}:/workspace:ro",
         "-w",
@@ -65,3 +84,4 @@ def build_docker_run(
         image,
         *command,
     ]
+    return argv
