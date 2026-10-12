@@ -65,7 +65,10 @@ def main(argv: list[str] | None = None) -> int:
     args, extra = parser.parse_known_args(argv)
 
     if args.command == "build-image":
-        tag = args.tag or f"pytestbox:py{args.python}"
+        # pytestbox:py3.12 and pytestbox:py312 must be the same tag or the
+        # run default can never find the image — docker tags conventionally
+        # avoid dots, so strip them.
+        tag = args.tag or f"pytestbox:py{args.python.replace('.', '')}"
         try:
             built = build_image(tag=tag, python_tag=args.python)
         except ImageBuildError as exc:

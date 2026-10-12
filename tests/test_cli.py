@@ -99,14 +99,18 @@ def test_text_mode_prints_output_and_status_line(make_project, canned_result, ca
 
 
 def test_build_image_success_prints_tag(monkeypatch, capsys):
-    monkeypatch.setattr(
-        cli, "build_image", lambda tag, python_tag, **kw: f"{tag}"
-    )
+    captured: dict = {}
+
+    def fake_build(tag, python_tag, **kw):
+        captured["tag"] = tag
+        return tag
+
+    monkeypatch.setattr(cli, "build_image", fake_build)
 
     assert cli.main(["build-image", "--python", "3.13"]) == 0
 
-    out = capsys.readouterr().out
-    assert "image ready: pytestbox:py3.13" in out
+    assert captured["tag"] == "pytestbox:py313"  # dots stripped — run's default
+    assert "image ready: pytestbox:py313" in capsys.readouterr().out
 
 
 def test_build_image_failure_exits_three(monkeypatch, capsys):
